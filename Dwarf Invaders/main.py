@@ -26,60 +26,46 @@ class Game(object):
 
 		while not self.game_over or event == 'quit':
 
+			clock.tick(FPS)
 			event = handle_events()
 			handle_keys()
 
 			scr.fill(BLACK)
 
-			collision = check_collision_bolt()
-			if collision is not None:
-				collision.die()
+			for obj in objects:		
+				if obj.check_off_boundaries() and obj is not None:
+					obj.die()
 
-			for bolt in objects:
-				if bolt.glyph == 2:
-					if bolt.direction_fly == 0:
-						bolt.clear(bolt.x, bolt.y)
-						bolt.move(0, -1)
-						#print bolt.x, bolt.y
-					else:
-						bolt.clear(bolt.x, bolt.y)
-						bolt.move(0, 1)
-
-
-			for elf in objects:
-				direction = choose_dir_elves(elf)
-				if elf.glyph == ELF_GLYPH:
-					elf.clear(elf.x, elf.y)
-					if direction == 'R':
-						elf.direction_fly = 1
-						elf.move(3, 1)
-
-					if direction == 'L':
-						elf.direction_fly = -1
-						elf.move(-3, 1)
-
-					elf.move(elf.direction_fly, 0)
-
-
-			for obj in objects:
+				manage_elves(obj)
+				manage_bolts(obj, self)
 				obj.place()
-				obj.check_off_boundaries()
 
+			#MAP[15][15] = 3
 			self.draw()
-
+			fps = font.render("FPS: {0}".format(str(int(clock.get_fps()))), True, WHITE)
+			scr.blit(fps, (0, 0))
 			pygame.display.flip()
+
 
 			if event == 'quit':
 				break
-			
-			clock.tick(60)
-
+		# losd menu
 		self.quit()
 
 	def quit(self):
-		pygame.font.quit()
-		pygame.quit
-		exit(0)
+		while True:
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					pygame.font.quit()
+					pygame.quit
+					exit(0)
+			scr.fill(BLACK)
+			losd = font.render("YOU LOSD XD", True, WHITE)
+			scr.blit(losd, (SCREEN_WIDTH / 2 - 6 * FONT_SIZE, SCREEN_HEIGHT / 2))
+			scr.blit(DWARF_SYMBOL, (SCREEN_WIDTH / 2 - 7 * FONT_SIZE, SCREEN_HEIGHT / 2))
+			scr.blit(DWARF_SYMBOL, (SCREEN_WIDTH / 2 + 5 * FONT_SIZE, SCREEN_HEIGHT / 2))
+			pygame.display.flip()
+
 
 
 	def draw(self):
@@ -90,7 +76,7 @@ class Game(object):
 					scr.blit(DWARF_SYMBOL, (row * FONT_SIZE, column * FONT_SIZE))
 				elif MAP[column][row] == BOLT_GLYPH:
 					scr.blit(BOLT_SYMBOL, (row * FONT_SIZE, column * FONT_SIZE))
-				elif MAP[column][row] == 3: # border
+				elif MAP[column][row] == HASH_GLYPH: # border
 					scr.blit(HASH_SYMBOL, (row * FONT_SIZE, column * FONT_SIZE))
 				elif MAP[column][row] == ELF_GLYPH:
 					scr.blit(ELF_SYMBOL, (row * FONT_SIZE, column * FONT_SIZE))
@@ -99,11 +85,13 @@ class Game(object):
 
 
 class Object(object):
-	# A generic class
-	# What can an object do?
-	# Be drawn, move, die, collide
+	"""
+	A generic class.
+	What can an object do?
+	Be placed, move, die, collide.
+	"""
 
-	def __init__(self, x, y, glyph, move_event, move_ms, shooter=None, direction_fly=None):
+	def __init__(self, x, y, glyph, move_event, move_ms, shooter=None, direction_fly=None, to_hit=None):
 		self.x = x
 		self.y = y
 		self.glyph = glyph
@@ -112,18 +100,24 @@ class Object(object):
 		self.can_move = True
 		self.shooter = shooter
 		self.direction_fly = direction_fly 
+		self.to_hit = to_hit
 		if self.shooter:
 			self.shooter.owner = self
 
 	def place(self):
-		MAP[self.y][self.x] = self.glyph
+		if self in objects:
+			MAP[self.y][self.x] = self.glyph
 
 	def clear(self, x, y):
 		MAP[y][x] = 0
 
 	def die(self):
-		MAP[self.y][self.x] = 0
+		# if self.shooter:
+			# if self.shooter.hp <0:
+		#else:
 		objects.remove(self)
+		self.clear(self.x, self.y)
+		self.shooter = None
 
 	def collide(self, other_x, other_y):
 		dx = other_x - self.x
@@ -132,8 +126,7 @@ class Object(object):
 		return sqrt(dx ** 2 + dy ** 2)
 
 	def check_off_boundaries(self):
-		if self.y < 0 or self.y > WINDOW_H:
-			self.die()
+		return (self.y < 0 or self.y > WINDOW_H)
 
 	def move(self, dx, dy):
 		if self.can_move:
@@ -145,25 +138,29 @@ class Object(object):
 
 
 class Shooter(object):
-	def __init__(self, hp, can_shoot, shoot_event, shoot_event_ms):
+	def __init__(self, hp, can_shoot, shoot_event, shoot_event_ms, surpass_limits=False):
 		self.hp = hp
 		self.can_shoot = can_shoot
 		self.shoot_event = shoot_event
 		self.shoot_event_ms = shoot_event_ms
+		self.surpass_limits = surpass_limits
 
-	def shoot(self, direction):
+	def shoot(self, direction, to_hits):
 		if self.can_shoot:
-			self.can_shoot = False
-			bolt = Object(self.owner.x, self.owner.y - 1, BOLT_GLYPH, BOLT_MOVE_EVENT, BOLT_MOVE_MS, direction_fly=direction)
+			if direction == 0:
+				d = -1
+			else:
+				d = 1
+			self.can_shoot = False							
+			bolt = Object(self.owner.x, self.owner.y + d, BOLT_GLYPH, BOLT_MOVE_EVENT, BOLT_MOVE_MS, direction_fly=direction, to_hit=to_hits)
 			objects.append(bolt)
 			pygame.time.set_timer(self.shoot_event, self.shoot_event_ms)
-
 
 def init():
 	global FONT_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT, font, scr, WHITE, GREY, \
 	DWARF_SYMBOL, MAP, clock, objects, DWARF_OBJ, GROUND_SYMBOL, \
 	DWARF_MOVE_EVENT,DWARF_MOVE_MS, DWARF_SHOOT_EVENT, DWARF_SHOOT_MS, BOLT_MOVE_EVENT, BOLT_MOVE_MS, BOLT_SYMBOL, DWARF_GLYPH, GROUND_GLYPH, \
-	BOLT_GLYPH, ELF_GLYPH, ELF_SYMBOL, ELF_MOVE_MS, ELF_MOVE_EVENT
+	BOLT_GLYPH, ELF_GLYPH, ELF_SYMBOL, ELF_MOVE_MS, ELF_MOVE_EVENT, HASH_SYMBOL, HASH_GLYPH, ELF_SHOOT_EVENT, ELF_SHOOT_MS, FPS, FPS_TEXT
 
 	pygame.init()
 	pygame.font.init()
@@ -182,8 +179,8 @@ def init():
 	GROUND_GLYPH = 0
 	DWARF_GLYPH = 1
 	BOLT_GLYPH = 2
+	HASH_GLYPH = 3
 	ELF_GLYPH = 4
-	HASH_GLYPH = 5
 
 	# how fast can the dwarf move
 	DWARF_MOVE_EVENT = pygame.USEREVENT + 1
@@ -197,19 +194,18 @@ def init():
 
 	# how fast can the bolt move
 	BOLT_MOVE_EVENT = pygame.USEREVENT + 3
-	BOLT_MOVE_MS = 100
+	BOLT_MOVE_MS = 30
 	pygame.time.set_timer(BOLT_MOVE_EVENT, BOLT_MOVE_MS)
 
-	#how fast can the elf move
-	ELF_MOVE_EVENT = pygame.USEREVENT + 4
-	ELF_MOVE_MS = 300
-	pygame.time.set_timer(ELF_MOVE_EVENT, ELF_MOVE_MS)
-
-	shooter_component = Shooter(hp=5, can_shoot=True, shoot_event=DWARF_SHOOT_EVENT, shoot_event_ms=DWARF_SHOOT_MS)
-	#shooter_elf_component = Shooter(hp=5, can_shoot=True, shoot_event=ELF, shoot_event_ms=DWARF_SHOOT_MS)
+	shooter_component = Shooter(hp=3, can_shoot=True, shoot_event=DWARF_SHOOT_EVENT, shoot_event_ms=DWARF_SHOOT_MS)
 	DWARF_OBJ = Object(WINDOW_W / 2, WINDOW_H / 2 + 10, DWARF_GLYPH, DWARF_MOVE_EVENT, DWARF_MOVE_MS, shooter=shooter_component)
 	objects = [DWARF_OBJ]
-	create_elves()
+	FPS = 60
+
+	ELF_ROWS = 3
+	ELF_COLUMNS = 20
+
+	create_elves(ELF_ROWS, ELF_COLUMNS)
 
 
 def handle_keys():
@@ -222,7 +218,8 @@ def handle_keys():
 		DWARF_OBJ.clear(DWARF_OBJ.x, DWARF_OBJ.y) 
 		DWARF_OBJ.move(-1, 0)
 	if pressed[pygame.K_SPACE]:
-		DWARF_OBJ.shooter.shoot(0)
+		DWARF_OBJ.shooter.shoot(0, to_hits='elf')
+		
 
 def handle_events():
 
@@ -234,26 +231,46 @@ def handle_events():
 			DWARF_OBJ.can_move = True
 			pygame.time.set_timer(DWARF_MOVE_EVENT, 0)
 
-		if event.type == DWARF_SHOOT_EVENT:
+		elif event.type == DWARF_SHOOT_EVENT:
 			DWARF_OBJ.shooter.can_shoot = True
 			pygame.time.set_timer(DWARF_SHOOT_EVENT, 0)
 
-		if event.type == BOLT_MOVE_EVENT:
+		elif event.type == BOLT_MOVE_EVENT:
 			for bolt in objects:
 				if bolt.glyph == BOLT_GLYPH:
 					bolt.can_move = True
 					pygame.time.set_timer(bolt.move_event, 0)
 
-		if event.type == ELF_MOVE_EVENT:
+
+		elif event.type == ELF_MOVE_EVENT:
 			for elf in objects:
-				if elf.glyph == ELF_GLYPH:	
+				if elf.glyph == ELF_GLYPH:
 					elf.can_move = True
 					pygame.time.set_timer(elf.move_event, 0)
 
-def create_elves():
-	for y in range(5):
-		for x in range(15):
-			elf = Object((2*x) + WINDOW_H / 2-2, y, ELF_GLYPH, ELF_MOVE_EVENT, ELF_MOVE_MS, direction_fly=1)
+		elif event.type == ELF_SHOOT_EVENT:
+			for elf in objects:
+				if elf.glyph == ELF_GLYPH:	
+					elf.shooter.can_shoot = True
+					pygame.time.set_timer(elf.shooter.shoot_event, 0)
+
+
+def create_elves(E_ROWS, E_COLUMNS):
+	global ELF_MOVE_EVENT, ELF_MOVE_MS, ELF_SHOOT_EVENT, ELF_SHOOT_MS, CAN_ELVES_SHOOT, CAN_ELVES_MOVE
+	ELF_MOVE_EVENT = pygame.USEREVENT + 4
+	ELF_MOVE_MS = 180
+	ELF_SHOOT_EVENT = pygame.USEREVENT + 5
+	ELF_SHOOT_MS = 200
+	CAN_ELVES_SHOOT = True
+	CAN_ELVES_MOVE = True
+
+	pygame.time.set_timer(ELF_SHOOT_EVENT, ELF_SHOOT_MS)
+	pygame.time.set_timer(ELF_MOVE_EVENT, ELF_MOVE_MS)
+
+	for y in range(E_ROWS):
+		for x in range(E_COLUMNS):
+			shooter_elf_component = Shooter(hp=1, can_shoot=CAN_ELVES_SHOOT, shoot_event=ELF_SHOOT_EVENT, shoot_event_ms=ELF_SHOOT_MS, surpass_limits=True)
+			elf = Object((2*x) + WINDOW_H / 2-2, 2*y, ELF_GLYPH, ELF_MOVE_EVENT, ELF_MOVE_MS, direction_fly=1, shooter=shooter_elf_component)
 			objects.append(elf)
 
 
@@ -261,18 +278,75 @@ def choose_dir_elves(elf):
 	if elf.x == WINDOW_W - 1:
 		return 'L'
 
-	if elf.x <= 1:
+	elif elf.x <= 1:
 		return 'R'
 
-def check_collision_bolt():
-	for bolt in objects:
-		for other in objects:
-			if bolt.glyph == BOLT_GLYPH and other.glyph == ELF_GLYPH: #other.glyph == ELF_GLYPH: #other.shooter:
-				if bolt.collide(other.x, other.y) < 1:
-					bolt.die()
-					return other
+def check_collision_bolt(bolt):
+	for other in objects:
+
+		if bolt.collide(other.x, other.y) < 1:
+			if bolt.to_hit == 'elf' and other.glyph == ELF_GLYPH:
+				return other
+
+			if bolt.to_hit == 'dwarf' and other.glyph == DWARF_GLYPH:
+				return other
+
+
+def choose_elf_to_shoot():
+	chance = random.randint(0, 10000)
+	chance_limit = 65
+	elf = random.choice(objects)
+	if elf.glyph == ELF_GLYPH and chance <chance_limit:
+		return elf.shooter
+
+
+def manage_elves(obj):
+	direction = choose_dir_elves(obj)
+	shooting_elf = choose_elf_to_shoot()
+	if obj.glyph == ELF_GLYPH:
+		obj.clear(obj.x, obj.y)
+		if direction == 'R':
+			obj.direction_fly = 1
+			obj.move(3, 1)
+
+		if direction == 'L':
+			obj.direction_fly = -1
+			obj.move(-3, 1)
+
+		obj.move(obj.direction_fly, 0)
+		if shooting_elf is not None:
+			shooting_elf.shoot(1, 'dwarf')
+
+def manage_bolts(obj, game):
+
+	if obj.glyph == BOLT_GLYPH:
+		collision = check_collision_bolt(obj)
+		if collision is not None:
+			obj.die()
+			collision.die()
+
+		if collision is not None and collision.glyph is DWARF_GLYPH:
+			game.game_over = True 
+
+		else:
+
+			if obj.direction_fly == 0:
+				obj.clear(obj.x, obj.y)
+				obj.move(0, -1)
+
+			elif obj.direction_fly == 1:
+				obj.clear(obj.x, obj.y)
+				obj.move(0, 1)
+
 
 if __name__ == '__main__':
 	init()
 	game = Game()
 	game.run()
+
+
+
+#TODO:
+#	1.Optimize DONE
+#	2.Add crates and bonuses
+#	3.Add UI
