@@ -3,34 +3,40 @@
 
 import pygame
 import random
+import sys
 from math import sqrt
 
 WINDOW_W = 50
-WINDOW_H = 25
+WINDOW_H = 27
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-GREY = (50, 50, 50)
-GREEN = (0, 255, 0)
+GREY = (51, 48, 48)
+GREEN = (0, 200, 0)
 BROWN = (102, 51, 0)
+RED = (140, 7, 7)
 LIGHT_BROWN = (153, 102, 51)
+
 FONT_SIZE = 14
 SCREEN_WIDTH = WINDOW_W * FONT_SIZE
 SCREEN_HEIGHT = WINDOW_H * FONT_SIZE
 
 class Game(object):
-	def __init__(self):
+	def __init__(self, elves):
 		self.game_over = False
+		self.game_won = False
+		self.score = 0
+		self.elves = elves
 
 	def run(self):
 		event = ""
 
 		while not self.game_over or event == 'quit':
-
 			clock.tick(FPS)
 			event = handle_events()
 			handle_keys()
-
 			scr.fill(BLACK)
+
+			self.game_over = self.check_for_game_over()
 
 			for obj in objects:		
 				if obj.check_off_boundaries() and obj is not None:
@@ -40,25 +46,26 @@ class Game(object):
 				manage_bolts(obj, self)
 				obj.place()
 
-			#MAP[15][15] = 3
+				if obj.shooter is not None:
+					obj.shooter.check_for_death()
+
 			self.draw()
-			fps = font.render("FPS: {0}".format(str(int(clock.get_fps()))), True, WHITE)
-			scr.blit(fps, (0, 0))
+			fps = font.render("{0}".format(str(int(clock.get_fps()))), True, WHITE)
+			scr.blit(fps, (1 * FONT_SIZE, 1 * FONT_SIZE))
+			draw_UI()
 			pygame.display.flip()
 
-
 			if event == 'quit':
-				break
-		# losd menu
-		self.quit()
+				self.quit()
 
-	def quit(self):
-		while True:
+		self.game_over_menu()
+
+	def game_over_menu(self):
+		while True and self.game_over == 1:
 			for event in pygame.event.get():
 				if event.type == pygame.QUIT:
-					pygame.font.quit()
-					pygame.quit
-					exit(0)
+					self.quit()
+
 			scr.fill(BLACK)
 			losd = font.render("YOU LOSD XD", True, WHITE)
 			scr.blit(losd, (SCREEN_WIDTH / 2 - 6 * FONT_SIZE, SCREEN_HEIGHT / 2))
@@ -66,12 +73,23 @@ class Game(object):
 			scr.blit(DWARF_SYMBOL, (SCREEN_WIDTH / 2 + 5 * FONT_SIZE, SCREEN_HEIGHT / 2))
 			pygame.display.flip()
 
-
+		while True and self.game_over == 2:
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					self.quit()
+					
+			# print winning screen - 5 last records, and new
+			scr.fill(BLACK)
+			losd = font.render("YOU WON!", True, WHITE)
+			scr.blit(losd, (SCREEN_WIDTH / 2 - 6 * FONT_SIZE, SCREEN_HEIGHT / 2))
+			scr.blit(DWARF_SYMBOL, (SCREEN_WIDTH / 2 - 7 * FONT_SIZE, SCREEN_HEIGHT / 2))
+			scr.blit(DWARF_SYMBOL, (SCREEN_WIDTH / 2 + 5 * FONT_SIZE, SCREEN_HEIGHT / 2))
+			pygame.display.flip()
 
 	def draw(self):
 
-		for row in range(WINDOW_W):
-			for column in range(WINDOW_H):
+		for row in range(1, WINDOW_W - 1):
+			for column in range(1, WINDOW_H - 3):
 				if MAP[column][row] == DWARF_GLYPH:
 					scr.blit(DWARF_SYMBOL, (row * FONT_SIZE, column * FONT_SIZE))
 				elif MAP[column][row] == BOLT_GLYPH:
@@ -82,6 +100,17 @@ class Game(object):
 					scr.blit(ELF_SYMBOL, (row * FONT_SIZE, column * FONT_SIZE))
 				else:
 					scr.blit(GROUND_SYMBOL, (row * FONT_SIZE, column * FONT_SIZE))
+
+
+	def check_for_game_over(self):
+		if DWARF_OBJ.shooter.hp <= 0: return 1
+		if self.elves <= 0: return 2
+
+	def quit(self):
+		pygame.font.quit()
+		pygame.display.quit()
+		pygame.quit()
+		sys.exit()
 
 
 class Object(object):
@@ -112,12 +141,8 @@ class Object(object):
 		MAP[y][x] = 0
 
 	def die(self):
-		# if self.shooter:
-			# if self.shooter.hp <0:
-		#else:
 		objects.remove(self)
 		self.clear(self.x, self.y)
-		self.shooter = None
 
 	def collide(self, other_x, other_y):
 		dx = other_x - self.x
@@ -130,7 +155,7 @@ class Object(object):
 
 	def move(self, dx, dy):
 		if self.can_move:
-			if not (self.x + dx > WINDOW_W - 1) and not (self.x + dx < 0):
+			if not (self.x + dx > WINDOW_W - 2) and not (self.x + dx < 1):
 				self.can_move = False
 				self.x += dx
 				self.y += dy
@@ -156,11 +181,20 @@ class Shooter(object):
 			objects.append(bolt)
 			pygame.time.set_timer(self.shoot_event, self.shoot_event_ms)
 
+	def check_for_death(self):
+		if self.hp <= 0:
+			self.owner.die()
+			if self.owner.glyph == ELF_GLYPH:
+				game.score += 10
+				game.elves -= 1
+
+
 def init():
 	global FONT_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT, font, scr, WHITE, GREY, \
 	DWARF_SYMBOL, MAP, clock, objects, DWARF_OBJ, GROUND_SYMBOL, \
 	DWARF_MOVE_EVENT,DWARF_MOVE_MS, DWARF_SHOOT_EVENT, DWARF_SHOOT_MS, BOLT_MOVE_EVENT, BOLT_MOVE_MS, BOLT_SYMBOL, DWARF_GLYPH, GROUND_GLYPH, \
-	BOLT_GLYPH, ELF_GLYPH, ELF_SYMBOL, ELF_MOVE_MS, ELF_MOVE_EVENT, HASH_SYMBOL, HASH_GLYPH, ELF_SHOOT_EVENT, ELF_SHOOT_MS, FPS, FPS_TEXT
+	BOLT_GLYPH, ELF_GLYPH, ELF_SYMBOL, ELF_MOVE_MS, ELF_MOVE_EVENT, HASH_SYMBOL, HASH_GLYPH, ELF_SHOOT_EVENT, ELF_SHOOT_MS, FPS, FPS_TEXT, LIFE_RED_SYMBOL, \
+	LIFE_GREY_SYMBOL, dwarf_shooter, HP_TEXT, SCORE_TEXT, ELVES_TEXT
 
 	pygame.init()
 	pygame.font.init()
@@ -168,13 +202,19 @@ def init():
 	font = pygame.font.Font("Px437_IBM_BIOS.ttf", FONT_SIZE)
 	pygame.display.set_caption("Dwarf Invaders")
 	scr = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-	MAP = [[0 for x in range(SCREEN_WIDTH)] for y in range(SCREEN_HEIGHT)]
+	MAP = [[0 for x in range(SCREEN_WIDTH)] for y in range(SCREEN_HEIGHT - 3)]
 
 	DWARF_SYMBOL = font.render(u"☻", True, GREEN)
 	GROUND_SYMBOL = font.render(u".", True, BROWN)
 	HASH_SYMBOL = font.render(u"#", True, WHITE)
 	BOLT_SYMBOL = font.render(u"|", True, LIGHT_BROWN)
 	ELF_SYMBOL = font.render("e", True, GREEN)
+	LIFE_RED_SYMBOL = font.render(u"☻", True, RED)
+	LIFE_GREY_SYMBOL = font.render(u"☻", True, GREY)
+
+	HP_TEXT = font.render("HP:", True, RED)
+	SCORE_TEXT = font.render("Score:", True, WHITE)
+	ELVES_TEXT = font.render("Elves:", True, GREEN)
 
 	GROUND_GLYPH = 0
 	DWARF_GLYPH = 1
@@ -197,15 +237,15 @@ def init():
 	BOLT_MOVE_MS = 30
 	pygame.time.set_timer(BOLT_MOVE_EVENT, BOLT_MOVE_MS)
 
-	shooter_component = Shooter(hp=3, can_shoot=True, shoot_event=DWARF_SHOOT_EVENT, shoot_event_ms=DWARF_SHOOT_MS)
-	DWARF_OBJ = Object(WINDOW_W / 2, WINDOW_H / 2 + 10, DWARF_GLYPH, DWARF_MOVE_EVENT, DWARF_MOVE_MS, shooter=shooter_component)
+	dwarf_shooter = Shooter(hp=5, can_shoot=True, shoot_event=DWARF_SHOOT_EVENT, shoot_event_ms=DWARF_SHOOT_MS)
+	DWARF_OBJ = Object(WINDOW_W / 2, WINDOW_H / 2 + 10, DWARF_GLYPH, DWARF_MOVE_EVENT, DWARF_MOVE_MS, shooter=dwarf_shooter)
 	objects = [DWARF_OBJ]
 	FPS = 60
 
-	ELF_ROWS = 3
-	ELF_COLUMNS = 20
+	ELF_ROWS = 4 # - 1 | 4
+	ELF_COLUMNS = 20 # | 20
 
-	create_elves(ELF_ROWS, ELF_COLUMNS)
+	return create_elves(ELF_ROWS, ELF_COLUMNS)
 
 
 def handle_keys():
@@ -258,28 +298,31 @@ def handle_events():
 def create_elves(E_ROWS, E_COLUMNS):
 	global ELF_MOVE_EVENT, ELF_MOVE_MS, ELF_SHOOT_EVENT, ELF_SHOOT_MS, CAN_ELVES_SHOOT, CAN_ELVES_MOVE
 	ELF_MOVE_EVENT = pygame.USEREVENT + 4
-	ELF_MOVE_MS = 180
+	ELF_MOVE_MS = 220 # 220
 	ELF_SHOOT_EVENT = pygame.USEREVENT + 5
-	ELF_SHOOT_MS = 200
+	ELF_SHOOT_MS = 600
 	CAN_ELVES_SHOOT = True
 	CAN_ELVES_MOVE = True
 
 	pygame.time.set_timer(ELF_SHOOT_EVENT, ELF_SHOOT_MS)
 	pygame.time.set_timer(ELF_MOVE_EVENT, ELF_MOVE_MS)
 
-	for y in range(E_ROWS):
+	elves_num = 0
+
+	for y in range(1, E_ROWS):
 		for x in range(E_COLUMNS):
 			shooter_elf_component = Shooter(hp=1, can_shoot=CAN_ELVES_SHOOT, shoot_event=ELF_SHOOT_EVENT, shoot_event_ms=ELF_SHOOT_MS, surpass_limits=True)
-			elf = Object((2*x) + WINDOW_H / 2-2, 2*y, ELF_GLYPH, ELF_MOVE_EVENT, ELF_MOVE_MS, direction_fly=1, shooter=shooter_elf_component)
+			elf = Object((2*x) + WINDOW_H / 2-2, 2*y - 1, ELF_GLYPH, ELF_MOVE_EVENT, ELF_MOVE_MS, direction_fly=1, shooter=shooter_elf_component)
 			objects.append(elf)
+			elves_num += 1
+
+	return elves_num
 
 
 def choose_dir_elves(elf):
-	if elf.x == WINDOW_W - 1:
-		return 'L'
+	if elf.x == WINDOW_W - 2: return 'L'
 
-	elif elf.x <= 1:
-		return 'R'
+	elif elf.x <= 2: return 'R'
 
 def check_collision_bolt(bolt):
 	for other in objects:
@@ -296,7 +339,7 @@ def choose_elf_to_shoot():
 	chance = random.randint(0, 10000)
 	chance_limit = 65
 	elf = random.choice(objects)
-	if elf.glyph == ELF_GLYPH and chance <chance_limit:
+	if elf.glyph == ELF_GLYPH and chance < chance_limit:
 		return elf.shooter
 
 
@@ -317,16 +360,17 @@ def manage_elves(obj):
 		if shooting_elf is not None:
 			shooting_elf.shoot(1, 'dwarf')
 
+		if obj.y >= WINDOW_H - 4:
+			game.game_over = 1
+
+
 def manage_bolts(obj, game):
 
 	if obj.glyph == BOLT_GLYPH:
 		collision = check_collision_bolt(obj)
 		if collision is not None:
-			obj.die()
-			collision.die()
-
-		if collision is not None and collision.glyph is DWARF_GLYPH:
-			game.game_over = True 
+			obj.die() # obj is the bolt colliding
+			collision.shooter.hp -= 1
 
 		else:
 
@@ -339,14 +383,50 @@ def manage_bolts(obj, game):
 				obj.move(0, 1)
 
 
-if __name__ == '__main__':
-	init()
-	game = Game()
-	game.run()
+def draw_UI():
+	for row in range(WINDOW_W):
+		for column in range(WINDOW_H):
+			if column == 0 or row == 0 or row == WINDOW_W - 1  or column == WINDOW_H - 1 or column == WINDOW_H - 3:
+				scr.blit(HASH_SYMBOL, (row * FONT_SIZE, column * FONT_SIZE))
 
+	hp = dwarf_shooter.hp
+	elves = game.elves
+	score = game.score
+
+	SCORE_NUMBER_TEXT = font.render("{0}".format(score), True, WHITE)
+	ELVES_NUMBER_TEXT = font.render("{0}".format(elves), True, GREEN)
+
+	scr.blit(HASH_SYMBOL, (1 * FONT_SIZE, (WINDOW_H - 2) * FONT_SIZE))
+	scr.blit(HASH_SYMBOL, ((WINDOW_W - 2) * FONT_SIZE, (WINDOW_H - 2) * FONT_SIZE))
+	scr.blit(HASH_SYMBOL, (20 * FONT_SIZE, (WINDOW_H - 2) * FONT_SIZE))
+	scr.blit(HASH_SYMBOL, (10 * FONT_SIZE, (WINDOW_H - 2) * FONT_SIZE))
+
+	scr.blit(HP_TEXT, (2 * FONT_SIZE, (WINDOW_H - 2) * FONT_SIZE))
+	scr.blit(ELVES_TEXT, (21 * FONT_SIZE, (WINDOW_H - 2) * FONT_SIZE))
+	scr.blit(ELVES_NUMBER_TEXT, (27 * FONT_SIZE, (WINDOW_H - 2) * FONT_SIZE))
+	scr.blit(SCORE_TEXT, ( (11 * FONT_SIZE), (WINDOW_H - 2 ) * FONT_SIZE) )
+	scr.blit(SCORE_NUMBER_TEXT, ( (17 * FONT_SIZE), (WINDOW_H - 2) * FONT_SIZE))
+
+	for x in range(hp):
+		if hp >= 5:
+			scr.blit(LIFE_RED_SYMBOL, (5 * FONT_SIZE + (FONT_SIZE) * x, (WINDOW_H - 2) * FONT_SIZE))
+		else:
+			scr.blit(LIFE_RED_SYMBOL, (5 * FONT_SIZE + (FONT_SIZE) * x, (WINDOW_H - 2) * FONT_SIZE))
+			x = abs(hp - 5)
+			for xx in range(x):
+				scr.blit(LIFE_GREY_SYMBOL, ((9 * FONT_SIZE) - (FONT_SIZE * xx), (WINDOW_H - 2) * FONT_SIZE))
+
+if __name__ == '__main__':
+	dat = init()
+	game = Game(dat)
+	game.run()
 
 
 #TODO:
 #	1.Optimize DONE
-#	2.Add crates and bonuses
-#	3.Add UI
+#	2 Add hp and score. (achievement when the player kills all elves without loosing hp.)
+#	3.Add crates and bonuses
+#	4.Add UI
+
+# powinienem dać wszystkie dane w osobnej klasie zamiast GLOBAL, albo w klasie Game
+# add score system
