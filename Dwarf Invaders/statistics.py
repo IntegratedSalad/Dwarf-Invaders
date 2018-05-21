@@ -13,7 +13,6 @@ def write_stats(data):
 			line =  name + " " + str(s[1]) + "\n"
 			f.write(line)
 
-
 def sort(arr):
 
 	for i in range(len(arr)-1, 0, -1):
@@ -33,7 +32,7 @@ def process_stats(stat):
 
 	data.append(stat) # new score
 
-	if isfile("statistics.txt"): # iftthere is, read from it and if not, skip and make the file
+	if isfile("statistics.txt"): # if there is, read from it and if not, skip and make the file
 		with open("statistics.txt", "r") as f:
 			raw_data = f.readlines()
 			for i in raw_data:
