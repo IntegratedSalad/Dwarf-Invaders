@@ -5,6 +5,7 @@ import pygame
 import random
 import sys
 from math import sqrt
+import statistics
 
 WINDOW_W = 50
 WINDOW_H = 27
@@ -49,6 +50,7 @@ class Game(object):
 				if obj.shooter is not None:
 					obj.shooter.check_for_death()
 
+
 			self.draw()
 			fps = font.render("{0}".format(str(int(clock.get_fps()))), True, WHITE)
 			scr.blit(fps, (1 * FONT_SIZE, 1 * FONT_SIZE))
@@ -61,30 +63,30 @@ class Game(object):
 		self.game_over_menu()
 
 	def game_over_menu(self):
-		while True and self.game_over == 1:
-			for event in pygame.event.get():
-				if event.type == pygame.QUIT:
-					self.quit()
 
-			scr.fill(BLACK)
-			losd = font.render("YOU LOSD XD", True, WHITE)
-			scr.blit(losd, (SCREEN_WIDTH / 2 - 6 * FONT_SIZE, SCREEN_HEIGHT / 2))
-			scr.blit(DWARF_SYMBOL, (SCREEN_WIDTH / 2 - 7 * FONT_SIZE, SCREEN_HEIGHT / 2))
-			scr.blit(DWARF_SYMBOL, (SCREEN_WIDTH / 2 + 5 * FONT_SIZE, SCREEN_HEIGHT / 2))
-			pygame.display.flip()
+		won = "You won!"
+		lost = "You have perished."
 
-		while True and self.game_over == 2:
-			for event in pygame.event.get():
-				if event.type == pygame.QUIT:
-					self.quit()
-					
-			# print winning screen - 5 last records, and new
-			scr.fill(BLACK)
-			losd = font.render("YOU WON!", True, WHITE)
-			scr.blit(losd, (SCREEN_WIDTH / 2 - 6 * FONT_SIZE, SCREEN_HEIGHT / 2))
-			scr.blit(DWARF_SYMBOL, (SCREEN_WIDTH / 2 - 7 * FONT_SIZE, SCREEN_HEIGHT / 2))
-			scr.blit(DWARF_SYMBOL, (SCREEN_WIDTH / 2 + 5 * FONT_SIZE, SCREEN_HEIGHT / 2))
-			pygame.display.flip()
+		state = self.game_over
+
+		if state == 1: 
+			caption = font.render(lost, True, RED)
+			text = lost
+		else: 
+			caption = font.render(won, True, GREEN)
+			text = won
+
+		stat = self.get_name(caption, text, state)
+		print stat
+
+		data = statistics.process_stats(stat)
+
+		statistics.write_stats(data)
+
+		self.show_stats(data)
+
+		self.quit()
+
 
 	def draw(self):
 
@@ -112,6 +114,82 @@ class Game(object):
 		pygame.quit()
 		sys.exit()
 
+	def get_name(self, caption, text, state):
+		"""Entering a name of current player"""
+
+		name_array = []
+
+		anecdotes_lost = ["Dwarf will reap what dwarf sow", "It was inevitable", "Losing is fun"]
+		anecdotes_won = ["Dwarves reign supreme"]
+		if state == 1: r_anecdote = random.choice(anecdotes_lost)
+		else:		   r_anecdote = random.choice(anecdotes_won)
+
+		anecdote = font.render(r_anecdote, True, GREY)
+
+		enter_name = font.render("Enter your name:", True, WHITE)
+
+		while True:
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					self.quit()
+
+				if event.type == pygame.KEYDOWN:
+					if pygame.key.name(event.key) not in ("backspace", "space", "return", "left shift", "right shift", "left ctrl", "left alt", "right ctrl", "right alt", "right", "left", "up", "down"):
+						name_array.append(pygame.key.name(event.key).capitalize())
+					else:
+						if pygame.key.name(event.key) == "space":
+							name_array.append(" ")
+
+						elif pygame.key.name(event.key) == "return":
+							return (''.join(name_array), self.score)
+
+						elif pygame.key.name(event.key) == "backspace":
+							try:
+								name_array.pop()
+							except IndexError:
+								pass
+
+			scr.fill(BLACK)
+
+			string = "".join(name_array)
+			name_r = font.render(string, True, WHITE)
+			scr.blit(name_r, (SCREEN_WIDTH / 2 - (len(string) / 2) * FONT_SIZE, SCREEN_HEIGHT / 2 - 2 * FONT_SIZE))
+			scr.blit(enter_name, (SCREEN_WIDTH / 2 - (len("Enter your name:") / 2) * FONT_SIZE, SCREEN_HEIGHT / 2 - 3 * FONT_SIZE))
+			scr.blit(caption, (SCREEN_WIDTH / 2 - (len(text) / 2) * FONT_SIZE, SCREEN_HEIGHT / 2 - 5 * FONT_SIZE))
+			scr.blit(anecdote, (SCREEN_WIDTH / 2 - (len(r_anecdote) / 2) * FONT_SIZE, SCREEN_HEIGHT - 2 * FONT_SIZE))
+			draw_border()
+
+			pygame.display.flip()
+
+
+	def show_stats(self, data):
+
+		starting_pos_y = 3
+		pos_x_name = 14
+		pos_x_score = 34
+		caption = font.render("How well did you do?", True, WHITE)
+
+		while True:
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					self.quit()
+
+			scr.fill(BLACK)
+			draw_border()
+			scr.blit(caption, (SCREEN_WIDTH / 2 - (len("How well did you do?") / 2) * FONT_SIZE, SCREEN_HEIGHT - 2 * FONT_SIZE))
+
+			for record in data:
+				name = record[0]
+				score = record[1]
+				name_r = font.render(name, True, WHITE)
+				score_r = font.render(str(score), True, WHITE)
+				scr.blit(name_r, (pos_x_name * FONT_SIZE, starting_pos_y * FONT_SIZE))
+				scr.blit(score_r, (pos_x_score * FONT_SIZE, starting_pos_y * FONT_SIZE))
+				starting_pos_y += 2
+
+			starting_pos_y = 3
+
+			pygame.display.flip()
 
 class Object(object):
 	"""
@@ -229,7 +307,7 @@ def init():
 
 	# how fast can the dwarf shoot
 	DWARF_SHOOT_EVENT = pygame.USEREVENT + 2
-	DWARF_SHOOT_MS = 1100
+	DWARF_SHOOT_MS = 1100 # 1100
 	pygame.time.set_timer(DWARF_SHOOT_EVENT, DWARF_SHOOT_MS)
 
 	# how fast can the bolt move
@@ -281,7 +359,6 @@ def handle_events():
 					bolt.can_move = True
 					pygame.time.set_timer(bolt.move_event, 0)
 
-
 		elif event.type == ELF_MOVE_EVENT:
 			for elf in objects:
 				if elf.glyph == ELF_GLYPH:
@@ -312,7 +389,7 @@ def create_elves(E_ROWS, E_COLUMNS):
 	for y in range(1, E_ROWS):
 		for x in range(E_COLUMNS):
 			shooter_elf_component = Shooter(hp=1, can_shoot=CAN_ELVES_SHOOT, shoot_event=ELF_SHOOT_EVENT, shoot_event_ms=ELF_SHOOT_MS, surpass_limits=True)
-			elf = Object((2*x) + WINDOW_H / 2-2, 2*y - 1, ELF_GLYPH, ELF_MOVE_EVENT, ELF_MOVE_MS, direction_fly=1, shooter=shooter_elf_component)
+			elf = Object((2*x) + WINDOW_H / 2-9, 2*y - 1, ELF_GLYPH, ELF_MOVE_EVENT, ELF_MOVE_MS, direction_fly=1, shooter=shooter_elf_component)
 			objects.append(elf)
 			elves_num += 1
 
@@ -321,7 +398,6 @@ def create_elves(E_ROWS, E_COLUMNS):
 
 def choose_dir_elves(elf):
 	if elf.x == WINDOW_W - 2: return 'L'
-
 	elif elf.x <= 2: return 'R'
 
 def check_collision_bolt(bolt):
@@ -383,11 +459,13 @@ def manage_bolts(obj, game):
 				obj.move(0, 1)
 
 
-def draw_UI():
+def draw_border():
 	for row in range(WINDOW_W):
 		for column in range(WINDOW_H):
-			if column == 0 or row == 0 or row == WINDOW_W - 1  or column == WINDOW_H - 1 or column == WINDOW_H - 3:
+			if column == 0 or row == 0 or row == WINDOW_W - 1 or column == WINDOW_H - 1 or column == WINDOW_H - 3:
 				scr.blit(HASH_SYMBOL, (row * FONT_SIZE, column * FONT_SIZE))
+
+def draw_UI():
 
 	hp = dwarf_shooter.hp
 	elves = game.elves
@@ -395,6 +473,8 @@ def draw_UI():
 
 	SCORE_NUMBER_TEXT = font.render("{0}".format(score), True, WHITE)
 	ELVES_NUMBER_TEXT = font.render("{0}".format(elves), True, GREEN)
+
+	draw_border()
 
 	scr.blit(HASH_SYMBOL, (1 * FONT_SIZE, (WINDOW_H - 2) * FONT_SIZE))
 	scr.blit(HASH_SYMBOL, ((WINDOW_W - 2) * FONT_SIZE, (WINDOW_H - 2) * FONT_SIZE))
@@ -426,7 +506,6 @@ if __name__ == '__main__':
 #	1.Optimize DONE
 #	2 Add hp and score. (achievement when the player kills all elves without loosing hp.)
 #	3.Add crates and bonuses
-#	4.Add UI
+#	4.Add UI DONE
 
 # powinienem dać wszystkie dane w osobnej klasie zamiast GLOBAL, albo w klasie Game
-# add score system
